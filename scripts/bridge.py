@@ -358,11 +358,14 @@ class ZohoVaultBridge:
         filter_type: str = "ALL_SHARED",
         search: Optional[str] = None,
         chamber_id: Optional[str] = None,
-        page: int = 1,
+        page: int = 0,
         limit: int = 50,
         decrypt: bool = True,
     ) -> List[Dict[str, Any]]:
-        """List secrets with optional filtering and automatic decryption."""
+        """List secrets with optional filtering and automatic decryption.
+
+        ``page`` is zero-based: Zoho Vault's ``pageNum`` starts at 0 (verified live).
+        """
         params = {
             "pageNum": str(page),
             "rowPerPage": str(limit),

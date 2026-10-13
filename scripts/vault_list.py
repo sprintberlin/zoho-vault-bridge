@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--filter", "-f", default="ALL_SHARED", help="Filter category: ALL_SHARED (default), OWNED_BY_ME, SHARED_TO_ME, PERSONAL, ENTERPRISE")
     parser.add_argument("--chamber-id", "-c", help="Folder (chamber) ID")
     parser.add_argument("--limit", "-l", type=int, default=50, help="Max items to fetch (default: 50)")
-    parser.add_argument("--page", "-p", type=int, default=1, help="Page number (default: 1)")
+    parser.add_argument("--page", "-p", type=int, default=0, help="Zero-based page number (default: 0)")
     parser.add_argument("--json", action="store_true", help="Output raw JSON")
     parser.add_argument("--no-decrypt", action="store_true", help="Do not attempt zero-knowledge decryption")
     args = parser.parse_args()

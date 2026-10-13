@@ -36,6 +36,19 @@ class TestZohoVaultBridge(unittest.TestCase):
         with self.assertRaises(Exception):
             bridge._refresh_access_token()
 
+    def test_list_defaults_to_zero_based_page(self):
+        bridge = ZohoVaultBridge(client_id="test", client_secret="test", refresh_token="test")
+        seen = []
+        def api_request(endpoint, **kwargs):
+            seen.append((endpoint, kwargs))
+            return {"operation": {"Details": [{"secretid": "example"}]}}
+        bridge._api_request = api_request
+        result = bridge.list_secrets(decrypt=False)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(seen[0][1]["params"]["pageNum"], "0")
+        bridge.list_secrets(page=2, decrypt=False)
+        self.assertEqual(seen[1][1]["params"]["pageNum"], "2")
+
     def test_rsa_4096_org_key_uses_pkcs8_der_and_oaep_sha256(self):
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
         private_der = private_key.private_bytes(
