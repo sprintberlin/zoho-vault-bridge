@@ -1,0 +1,29 @@
+{
+  "name": "zoho-vault-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Zoho Vault REST & OAuth 2.0 Bridge for AI agents: read, search, create and update secrets and passwords via Self Client without MCP.",
+  "main": "scripts/bridge.py",
+  "scripts": {
+    "test": "python3 -m unittest discover -s tests -v"
+  },
+  "keywords": [
+    "zoho",
+    "zoho-vault",
+    "vault",
+    "password-manager",
+    "oauth",
+    "self-client",
+    "openclaw",
+    "agent-skill",
+    "bridge",
+    "rest-api"
+  ],
+  "author": "SprintCX GmbH <info@sprintcx.de>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sprintberlin/zoho-vault-bridge.git"
+  },
+  "homepage": "https://github.com/sprintberlin/zoho-vault-bridge"
+}
