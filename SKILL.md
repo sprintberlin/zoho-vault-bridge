@@ -32,7 +32,7 @@ Required in `.env` (or inherited via environment variables):
 
 When generating the Self Client Grant Token in the Zoho API Console, include:
 ```text
-ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.folders.READ,ZohoVault.chambers.READ
+ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.user.READ
 ```
 
 ## Setup & Onboarding

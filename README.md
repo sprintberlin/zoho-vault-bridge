@@ -28,7 +28,7 @@ AI agents (such as OpenClaw agents) needing access to customer credentials, API 
 
 ## 🛠 Tech Stack & Requirements
 
-- **Python 3.10+** (standard library only; optional `cryptography` for RSA org key operations)
+- **Python 3.10+** (standard library and `cryptography` for RSA organization key operations)
 - **Node.js 18+** (for bit-exact Zoho Vault cipher routines)
 - **Zoho Account** with an active Zoho Vault organization or personal account
 
@@ -74,9 +74,9 @@ chmod 600 .env
 
 ### Required Scopes in Zoho API Console
 
-When generating your Self Client Grant Token at [api-console.zoho.eu](https://api-console.zoho.eu) (or `.com`), specify:
+When generating your Self Client Grant Token at [api-console.zoho.eu](https://api-console.zoho.eu) (or `.com`), specify these scopes. `ZohoVault.user.READ` is required for `GET_LOGIN` and the organization key; folder access uses `ZohoVault.secrets.READ`:
 ```text
-ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.folders.READ,ZohoVault.chambers.READ
+ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.user.READ
 ```
 
 ### Guided Onboarding Wizard
@@ -150,8 +150,8 @@ Zoho Vault operates under a **Zero-Knowledge Architecture**:
 3. For **Personal Secrets**, field values (username, password, notes) are encrypted/decrypted with AES-256 CTR using the Master Key.
 4. For **Shared Organization Secrets**, an **Org Key** is used:
    - The user's RSA private key is retrieved encrypted from `/api/rest/json/v1/user/orgkey`.
-   - The RSA private key is decrypted using the Master Key.
-   - The Org Key is decrypted from `sharedKey` using the RSA private key.
+   - The RSA private key is decrypted using the Master Key and imported as base64 PKCS#8 DER (RSA-4096).
+   - The Org Key is decrypted from `sharedKey` with RSA-OAEP/SHA-256. Legacy RSA-1024 vaults are not yet supported.
    - All shared passwords in the organization are then decrypted/encrypted with this Org Key.
 
 This bridge handles the entire sequence automatically when `ZOHO_VAULT_PASSPHRASE` is set.

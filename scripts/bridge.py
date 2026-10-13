@@ -287,29 +287,41 @@ class ZohoVaultBridge:
         details = resp.get("operation", {}).get("Details", {})
         enc_private_key = details.get("privateKey")
         shared_key = details.get("sharedKey")
+        rsa_key_type = details.get("rsaKeyType", "RSA_4096")
 
         if not (enc_private_key and shared_key):
             # Not an enterprise org or no shared key configured
             return None
 
-        # Decrypt private key with Master Key (AES)
-        res_priv = self._call_crypto_helper("decrypt", enc_private_key, master_key)
-        private_key_pem = res_priv.get("plaintext")
+        if rsa_key_type != "RSA_4096":
+            raise ZohoVaultBridgeError(
+                f"Unsupported RSA key type {rsa_key_type!r}; only RSA_4096 is implemented."
+            )
 
-        # Decrypt sharedKey with RSA private key
+        # Decrypt private key with Master Key (AES). Zoho returns base64 PKCS#8 DER.
+        res_priv = self._call_crypto_helper("decrypt", enc_private_key, master_key)
+        private_key_b64 = res_priv.get("plaintext")
+
+        # Decrypt sharedKey with RSA-OAEP (SHA-256), as the official zv CLI does.
         from cryptography.hazmat.primitives.asymmetric import padding
-        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives import hashes, serialization
         import base64
 
         try:
-            priv_key = serialization.load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
+            priv_key = serialization.load_der_private_key(base64.b64decode(private_key_b64), password=None)
             ciphertext = base64.b64decode(shared_key)
-            decrypted_org_key = priv_key.decrypt(ciphertext, padding.PKCS1v15()).decode("utf-8")
+            decrypted_org_key = priv_key.decrypt(
+                ciphertext,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None,
+                ),
+            ).decode("utf-8")
             self._org_key = decrypted_org_key
             return decrypted_org_key
         except Exception as e:
-            # Fallback or report error
-            raise ZohoVaultBridgeError(f"Failed to decrypt Organization Key: {e}")
+            raise ZohoVaultBridgeError(f"Failed to decrypt Organization Key: {type(e).__name__}")
 
     def decrypt_secret(self, secret: Dict[str, Any]) -> Dict[str, Any]:
         """Decrypt all sensitive fields in a secret object using the appropriate key."""

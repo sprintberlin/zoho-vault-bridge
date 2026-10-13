@@ -147,7 +147,7 @@ def main(cli_args=None) -> int:
     # 3. Grant Code
     print("\nIn Zoho API Console -> Self Client -> Generate Code:")
     print("Required scopes for Zoho Vault:")
-    print("  ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.folders.READ,ZohoVault.chambers.READ")
+    print("  ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.user.READ")
     print("Scope duration: 10 minutes.")
 
     grant_code = None

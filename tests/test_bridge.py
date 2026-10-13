@@ -3,9 +3,13 @@
 Unit tests for ZohoVaultBridge core logic, DC resolution and request structures.
 """
 
+import base64
 import unittest
 from pathlib import Path
 import sys
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -31,6 +35,50 @@ class TestZohoVaultBridge(unittest.TestCase):
         bridge = ZohoVaultBridge(client_id="", client_secret="", refresh_token="")
         with self.assertRaises(Exception):
             bridge._refresh_access_token()
+
+    def test_rsa_4096_org_key_uses_pkcs8_der_and_oaep_sha256(self):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=4096)
+        private_der = private_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        org_key = "test-organization-key"
+        encrypted_org_key = private_key.public_key().encrypt(
+            org_key.encode(),
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+        bridge = ZohoVaultBridge(client_id="test", client_secret="test", refresh_token="test")
+        bridge.get_master_key = lambda: "synthetic-master-key"
+        bridge._api_request = lambda *args, **kwargs: {
+            "operation": {"Details": {
+                "privateKey": "synthetic-ciphertext",
+                "sharedKey": base64.b64encode(encrypted_org_key).decode(),
+                "rsaKeyType": "RSA_4096",
+            }}
+        }
+        bridge._call_crypto_helper = lambda *args, **kwargs: {
+            "plaintext": base64.b64encode(private_der).decode()
+        }
+        self.assertEqual(bridge.get_org_key(), org_key)
+        self.assertEqual(bridge.get_org_key(), org_key)  # cached
+
+    def test_unsupported_rsa_type_fails_closed(self):
+        bridge = ZohoVaultBridge(client_id="test", client_secret="test", refresh_token="test")
+        bridge.get_master_key = lambda: "synthetic-master-key"
+        bridge._api_request = lambda *args, **kwargs: {
+            "operation": {"Details": {
+                "privateKey": "synthetic-ciphertext",
+                "sharedKey": "synthetic-ciphertext",
+                "rsaKeyType": "RSA_1024",
+            }}
+        }
+        with self.assertRaisesRegex(Exception, "Unsupported RSA key type"):
+            bridge.get_org_key()
 
 
 if __name__ == "__main__":
