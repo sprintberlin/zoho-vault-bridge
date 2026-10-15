@@ -1,165 +1,103 @@
 # Zoho Vault Bridge
 
-<p align="center">
-  <b>Zoho Vault REST API & OAuth 2.0 Bridge for AI Agents and Developers</b><br>
-  Read, search, create, and update passwords and secrets in Zoho Vault without an MCP server.
-</p>
+Agent skill and CLI for Zoho Vault via the REST API and an OAuth 2.0 Self Client. Zoho offers no MCP server for Vault.
 
-<p align="center">
-  <b>Agent Skill</b> · <b>Zero-Knowledge AES-256 Decryption</b> · <b>OAuth 2.0 Self Client</b> · <b>Multi-Data Center</b> · <b>MIT License</b>
-</p>
+Secrets in Zoho Vault are encrypted client-side (zero-knowledge). The bridge derives the keys locally from the master passphrase and decrypts fields on the client.
 
----
+## Status
 
-## 🧩 The Problem
+| Capability | State |
+|---|---|
+| OAuth token refresh, token cache | verified live |
+| Master key, organization key (RSA-4096) | verified live |
+| List and decrypt shared secrets | verified live |
+| Get a single secret | implemented, unit-tested only |
+| Create, update, delete | **experimental, not verified against a live vault** |
+| RSA-1024 vaults | not supported (fails closed) |
 
-Zoho provides official Model Context Protocol (MCP) servers for Zoho CRM, Books, Desk, People, Social, and WorkDrive. 
+Create and update currently send JSON. Zoho's official CLI (`@zohocorporation/vault-cli`) sends form-encoded `INPUT_DATA=<json>`. Do not rely on write operations until this is verified, see [Issues](https://github.com/sprintberlin/zoho-vault-bridge/issues).
 
-**For Zoho Vault, there is currently no MCP server available.**
+## Requirements
 
-AI agents (such as OpenClaw agents) needing access to customer credentials, API keys, or infrastructure passwords stored in Zoho Vault previously had no programmatic way to read or modify vault items. Additionally, Zoho Vault employs client-side zero-knowledge encryption: secret data stored on Zoho's servers is AES-encrypted ciphertext, requiring local key derivation and decryption.
+- Python 3.10+ with `cryptography`
+- Node.js 18+
+- Zoho Vault account, Self Client in the Zoho API Console, master passphrase
 
-**Zoho Vault Bridge solves this:**
-- Connects directly to Zoho Vault REST API endpoints via OAuth 2.0 Self Client.
-- Implements the exact zero-knowledge cryptographic workflow: PBKDF2 Master Key derivation, passauth validation, RSA-decrypted Organization Key retrieval, and AES-256 CTR cipher routines.
-- Provides ready-to-use CLI tools for AI agents and human operators to search, inspect, create, and update passwords safely.
-
----
-
-## 🛠 Tech Stack & Requirements
-
-- **Python 3.10+** (standard library and `cryptography` for RSA organization key operations)
-- **Node.js 18+** (for bit-exact Zoho Vault cipher routines)
-- **Zoho Account** with an active Zoho Vault organization or personal account
-
----
-
-## ⚙️ Installation & Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/sprintberlin/zoho-vault-bridge.git ~/github_repos/zoho-vault-bridge
-   cd ~/github_repos/zoho-vault-bridge
-   ```
-
-2. **Make scripts executable:**
-   ```bash
-   chmod +x scripts/*.py scripts/*.js
-   ```
-
-3. **Run tests:**
-   ```bash
-   npm test
-   # or: python3 -m unittest discover -s tests -v
-   ```
-
----
-
-## 🔑 Environment Variables (.env)
-
-Copy `.env.example` to `.env` (permissions `0600`):
+## Install
 
 ```bash
-cp .env.example .env
-chmod 600 .env
+git clone https://github.com/sprintberlin/zoho-vault-bridge.git ~/github_repos/zoho-vault-bridge
+cd ~/github_repos/zoho-vault-bridge
+pip install cryptography
+npm test
 ```
 
-| Variable | Description | Example |
-|---|---|---|
-| `ZOHO_VAULT_CLIENT_ID` | OAuth Self Client ID | `1000.TY5ZEKIP84H0...` |
-| `ZOHO_VAULT_CLIENT_SECRET` | OAuth Self Client Secret | `35d15c880d...` |
-| `ZOHO_VAULT_REFRESH_TOKEN` | OAuth Refresh Token | `1000.xxxx...` |
-| `ZOHO_VAULT_DC` | Data Center (`eu`, `us`, `in`, `au`, `com.cn`, `ca`) | `eu` |
-| `ZOHO_VAULT_PASSPHRASE` | Master Passphrase (required for decryption) | `SuperSecretPassphrase` |
+## Configuration
 
-### Required Scopes in Zoho API Console
+Copy `.env.example` to `.env` and set mode `0600`.
 
-When generating your Self Client Grant Token at [api-console.zoho.eu](https://api-console.zoho.eu) (or `.com`), specify these scopes. `ZohoVault.user.READ` is required for `GET_LOGIN` and the organization key; folder access uses `ZohoVault.secrets.READ`:
+| Variable | Description |
+|---|---|
+| `ZOHO_VAULT_CLIENT_ID` | Self Client ID |
+| `ZOHO_VAULT_CLIENT_SECRET` | Self Client secret |
+| `ZOHO_VAULT_REFRESH_TOKEN` | Refresh token |
+| `ZOHO_VAULT_DC` | `eu`, `us`, `in`, `au`, `com.cn`, `ca` (default `eu`) |
+| `ZOHO_VAULT_PASSPHRASE` | Master passphrase, required for decryption |
+
+Scopes for the grant code:
+
 ```text
 ZohoVault.secrets.READ,ZohoVault.secrets.CREATE,ZohoVault.secrets.UPDATE,ZohoVault.secrets.DELETE,ZohoVault.user.READ
 ```
 
-### Guided Onboarding Wizard
+`ZohoVault.user.READ` is required for the key material (`GET_LOGIN`, organization key).
 
-Run the interactive setup tool to exchange your 10-minute Grant Token for a long-lived refresh token:
+Exchange the grant code for a refresh token:
 
 ```bash
 python3 scripts/onboarding.py
-```
-
-Or pass the grant token securely from a file:
-```bash
 python3 scripts/onboarding.py --grant-code-file ./grant.txt
 ```
 
-Access tokens are reused from `.cache/oauth-token.json` (mode `0600`, gitignored) until shortly before they expire. This avoids a Zoho token refresh on every script call.
+Access tokens are cached in `.cache/oauth-token.json` (mode `0600`, gitignored) to stay below Zoho's token refresh rate limit.
 
----
+## Usage
 
-## 🚀 Usage & Agent Commands
-
-### List & Search Passwords
 ```bash
-# List all shared secrets
-python3 scripts/vault_list.py
-
-# Search by name
-python3 scripts/vault_list.py --search "Production DB"
-
-# Output as JSON
-python3 scripts/vault_list.py --search "AWS" --json
+python3 scripts/vault_list.py [--search NAME] [--filter ALL_SHARED] [--page 0] [--json]
+python3 scripts/vault_get.py <SECRET_ID> [--show-password]
+python3 scripts/vault_create.py --name NAME [--username U] [--url URL] [--personal]   # experimental
+python3 scripts/vault_update.py <SECRET_ID> --password -                              # experimental
+python3 scripts/vault_delete.py <SECRET_ID> --yes                                     # experimental
 ```
 
-### Read a Password
-```bash
-# Masked output
-python3 scripts/vault_get.py <SECRET_ID>
+Filters: `ALL_SHARED`, `OWNED_BY_ME`, `SHARED_TO_ME`, `PERSONAL`, `ENTERPRISE`. Pages are zero-based.
 
-# Reveal plain password
-python3 scripts/vault_get.py <SECRET_ID> --show-password
+Passwords are masked unless `--show-password` is passed. `vault_create.py` and `vault_update.py` prompt for the password when it is omitted or `-`, which keeps it out of shell history.
+
+## Encryption
+
+1. `POST /api/json/login` (`GET_LOGIN`) returns salt, iteration count and a verification token.
+2. Master key: PBKDF2-SHA256 over passphrase and salt, validated against the verification token.
+3. Personal secrets: AES-256 with the master key.
+4. Shared secrets: the private key from `/api/rest/json/v1/user/orgkey` is decrypted with the master key (base64 PKCS#8 DER), then RSA-OAEP/SHA-256 decrypts `sharedKey` to the organization key, which decrypts the secret fields.
+
+## Security
+
+- Keep `.env` and `.cache/` at mode `0600`. Both are gitignored.
+- Use `--show-password` only on request. Never post plaintext passwords in group chats, logs or memory files.
+- Grant least privilege: the token and passphrase give access to everything the Zoho user can see.
+
+## Tests
+
+```bash
+npm test
 ```
 
-### Create a Password
-```bash
-python3 scripts/vault_create.py \
-  --name "Staging API Key" \
-  --username "service-agent" \
-  --password "SecretToken123!" \
-  --url "https://api.example.com" \
-  --notes "Generated by OpenClaw"
-```
+## Credits
 
-### Update a Password
-```bash
-python3 scripts/vault_update.py <SECRET_ID> --password "NewSecurePassword2026!"
-```
+`scripts/vendor/zohovault.js` is Zoho's client-side cipher routine, vendored so ciphertexts stay compatible with Zoho's own clients. Zoho's published `@zohocorporation/vault-cli` declares no license, so its redistribution terms are unclear. It is not covered by this repository's MIT license.
 
-### Delete a Password
-```bash
-python3 scripts/vault_delete.py <SECRET_ID> --yes
-```
+## License
 
----
-
-## 💡 How Zoho Vault Encryption Works
-
-Zoho Vault operates under a **Zero-Knowledge Architecture**:
-1. When calling `POST /api/json/login` with `OPERATION_NAME: GET_LOGIN`, the server returns user encryption metadata:
-   - `SALT`: Cryptographic salt for PBKDF2
-   - `ITERATION`: Number of PBKDF2 iterations (typically 1,000 to 10,000)
-   - `PASSPHRASE`: Ciphertext token used to verify correct passphrase derivation
-2. The client derives the **Master Key** using `PBKDF2(passphrase, salt, iterations, 256 bits, SHA-256)`.
-3. For **Personal Secrets**, field values (username, password, notes) are encrypted/decrypted with AES-256 CTR using the Master Key.
-4. For **Shared Organization Secrets**, an **Org Key** is used:
-   - The user's RSA private key is retrieved encrypted from `/api/rest/json/v1/user/orgkey`.
-   - The RSA private key is decrypted using the Master Key and imported as base64 PKCS#8 DER (RSA-4096).
-   - The Org Key is decrypted from `sharedKey` with RSA-OAEP/SHA-256. Legacy RSA-1024 vaults are not yet supported.
-   - All shared passwords in the organization are then decrypted/encrypted with this Org Key.
-
-This bridge handles the entire sequence automatically when `ZOHO_VAULT_PASSPHRASE` is set.
-
----
-
-## 📄 License
-
-MIT License — Copyright (c) 2026 SprintCX GmbH.
+MIT, see `LICENSE` (applies to everything except `scripts/vendor/`).

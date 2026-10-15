@@ -78,7 +78,7 @@ python3 scripts/vault_get.py <SECRET_ID> --show-password
 python3 scripts/vault_get.py <SECRET_ID> --show-password --json
 ```
 
-### 3. Create a Secret / Password
+### 3. Create a Secret / Password (experimental)
 
 ```bash
 # Create a new secret
@@ -96,7 +96,7 @@ python3 scripts/vault_create.py \
   --personal
 ```
 
-### 4. Update an Existing Secret
+### 4. Update an Existing Secret (experimental)
 
 ```bash
 # Update password for a secret
@@ -106,7 +106,7 @@ python3 scripts/vault_update.py <SECRET_ID> --password "NewP@ssw0rd2026!"
 python3 scripts/vault_update.py <SECRET_ID> --username "new-user" --url "https://app.example.com"
 ```
 
-### 5. Delete a Secret
+### 5. Delete a Secret (experimental)
 
 ```bash
 # Delete secret with confirmation
@@ -128,10 +128,8 @@ bridge = ZohoVaultBridge()
 # List secrets
 secrets = bridge.list_secrets(search="Hetzner")
 
-# Get decrypted secret
-secret = bridge.get_secret(secret_id="1000000015041")
-print(secret["secretDataDecrypted"]["password"])
-
-# Update secret
-bridge.update_secret(secret_id="1000000015041", password="NewSecretPassword!")
+# Get decrypted secret (never print the password unless explicitly requested)
+secret = bridge.get_secret(secret_id="<SECRET_ID>")
 ```
+
+Create, update and delete are experimental and not yet verified against a live vault. Run them only on a throwaway entry and with explicit approval.
