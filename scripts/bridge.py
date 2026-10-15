@@ -7,6 +7,7 @@ for AI agents and automated workflows without requiring an MCP server.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -80,6 +81,7 @@ class ZohoVaultBridge:
         dc: str = "eu",
         passphrase: Optional[str] = None,
         env_file: Optional[Path] = None,
+        token_cache_path: Optional[Path] = None,
     ):
         # Load from file if provided or if .env exists in project root
         file_env = {}
@@ -104,6 +106,7 @@ class ZohoVaultBridge:
 
         self._access_token: Optional[str] = None
         self._access_token_expires_at: float = 0.0
+        self._token_cache_path = token_cache_path or (SCRIPT_DIR.parent / ".cache" / "oauth-token.json")
 
         # Cryptographic session caches
         self._master_key: Optional[str] = None
@@ -149,10 +152,54 @@ class ZohoVaultBridge:
         self._access_token_expires_at = time.time() + float(expires_in) - 60.0  # 60s safety buffer
         return access_token
 
+    def _token_cache_key(self) -> str:
+        material = "\0".join((self.client_id or "", self.dc, self.refresh_token or ""))
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+    def _load_cached_access_token(self) -> None:
+        """Reuse a still-valid access token across separate script invocations."""
+        try:
+            cached = json.loads(self._token_cache_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            return
+        if not isinstance(cached, dict) or cached.get("key") != self._token_cache_key():
+            return
+        token = cached.get("access_token")
+        try:
+            expires_at = float(cached.get("expires_at", 0))
+        except (TypeError, ValueError):
+            return
+        if isinstance(token, str) and token and time.time() < expires_at:
+            self._access_token = token
+            self._access_token_expires_at = expires_at
+
+    def _store_cached_access_token(self) -> None:
+        if not self._access_token:
+            return
+        payload = json.dumps({
+            "key": self._token_cache_key(),
+            "access_token": self._access_token,
+            "expires_at": self._access_token_expires_at,
+        })
+        self._token_cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self._token_cache_path.with_suffix(".tmp")
+        temporary.write_text(payload, encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, self._token_cache_path)
+        os.chmod(self._token_cache_path, 0o600)
+
     def get_access_token(self) -> str:
-        """Return a valid access token, refreshing if necessary."""
+        """Return a valid access token, reusing the local cache before refreshing."""
         if not self._access_token or time.time() >= self._access_token_expires_at:
-            return self._refresh_access_token()
+            self._load_cached_access_token()
+        if not self._access_token or time.time() >= self._access_token_expires_at:
+            token = self._refresh_access_token()
+            try:
+                self._store_cached_access_token()
+            except OSError:
+                # A cache write must not fail an otherwise successful token refresh.
+                pass
+            return token
         return self._access_token
 
     def _api_request(

@@ -4,6 +4,10 @@ Unit tests for ZohoVaultBridge core logic, DC resolution and request structures.
 """
 
 import base64
+import json
+import stat
+import tempfile
+import time
 import unittest
 from pathlib import Path
 import sys
@@ -79,6 +83,37 @@ class TestZohoVaultBridge(unittest.TestCase):
         }
         self.assertEqual(bridge.get_org_key(), org_key)
         self.assertEqual(bridge.get_org_key(), org_key)  # cached
+
+    def test_access_token_is_reused_across_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory) / "oauth-token.json"
+            first = ZohoVaultBridge(
+                client_id="test-client", client_secret="***", refresh_token="***", token_cache_path=cache,
+            )
+            calls = []
+            first._access_token = "cached-access-token"
+            first._access_token_expires_at = time.time() + 3000
+            first._store_cached_access_token()
+            self.assertEqual(stat.S_IMODE(cache.stat().st_mode), 0o600)
+            stored = json.loads(cache.read_text())
+            self.assertNotIn("refresh_token", stored)
+            self.assertNotIn("client_secret", stored)
+
+            second = ZohoVaultBridge(
+                client_id="test-client", client_secret="***", refresh_token="***", token_cache_path=cache,
+            )
+            def fail_refresh():
+                calls.append("second-refresh")
+                raise AssertionError("cached token should not be refreshed")
+            second._refresh_access_token = fail_refresh
+            self.assertEqual(second.get_access_token(), "cached-access-token")
+
+            other_client = ZohoVaultBridge(
+                client_id="other-client", client_secret="***", refresh_token="***", token_cache_path=cache,
+            )
+            other_client._refresh_access_token = lambda: "other-token"
+            self.assertEqual(other_client.get_access_token(), "other-token")
+            self.assertEqual(calls, [])
 
     def test_unsupported_rsa_type_fails_closed(self):
         bridge = ZohoVaultBridge(client_id="test", client_secret="test", refresh_token="test")

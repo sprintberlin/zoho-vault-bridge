@@ -92,6 +92,8 @@ Or pass the grant token securely from a file:
 python3 scripts/onboarding.py --grant-code-file ./grant.txt
 ```
 
+Access tokens are reused from `.cache/oauth-token.json` (mode `0600`, gitignored) until shortly before they expire. This avoids a Zoho token refresh on every script call.
+
 ---
 
 ## 🚀 Usage & Agent Commands
